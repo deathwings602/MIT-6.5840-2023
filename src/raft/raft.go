@@ -500,6 +500,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		conflictIdx := args.PrevLogIndex
 		for rf.safeLogEntryGetter(rf.indexToPos(conflictIdx)).Term == reply.ConflictTerm {
 			conflictIdx--
+			if conflictIdx < rf.lastIncludedIndex {
+				break
+			}
 		}
 		reply.ConflictIndex = conflictIdx + 1
 		return
