@@ -43,9 +43,8 @@ type Op struct {
 }
 
 type ApplyMsg struct {
-	Value     string
-	Error     Err
-	ApplyTerm int
+	Value string
+	Error Err
 }
 
 type KVServer struct {
@@ -250,7 +249,7 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
 
 	snapshot := kv.persister.ReadSnapshot()
-	if snapshot != nil && len(snapshot) > 0 {
+	if len(snapshot) > 0 {
 		kv.readPersistent(snapshot)
 	}
 
