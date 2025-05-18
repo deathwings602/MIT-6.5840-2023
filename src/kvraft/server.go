@@ -58,7 +58,6 @@ type KVServer struct {
 	persister    *raft.Persister
 
 	// Your definitions here.
-	servers     []*labrpc.ClientEnd
 	Db          map[string]string
 	opChan      map[int64]chan ApplyMsg
 	LastApplied map[int64]int64
@@ -238,7 +237,6 @@ func StartKVServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persiste
 	kv.maxraftstate = maxraftstate
 
 	// You may need initialization code here.
-	kv.servers = servers
 	kv.Db = make(map[string]string)
 	kv.opChan = make(map[int64]chan ApplyMsg)
 	kv.LastApplied = make(map[int64]int64)
