@@ -73,6 +73,7 @@ func (ck *Clerk) Get(key string) string {
 	args.ClientId = ck.clientId
 	args.MsgId = atomic.AddInt64(&ck.seqNum, 1)
 	args.ShardId = key2shard(key)
+	DPrint("[Client %v] send %v", ck.clientId, args)
 
 	for {
 		shard := key2shard(key)
@@ -84,6 +85,7 @@ func (ck *Clerk) Get(key string) string {
 				srv := ck.make_end(servers[si])
 				var reply GetReply
 				ok := srv.Call("ShardKV.Get", &args, &reply)
+				DPrint("[Client %v] get reply %v (ok = %v) form [%v-%v]", ck.clientId, reply, ok, gid, si)
 				if ok && (reply.Err == OK || reply.Err == ErrNoKey) {
 					return reply.Value
 				}
@@ -109,6 +111,7 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 	args.ClientId = ck.clientId
 	args.MsgId = atomic.AddInt64(&ck.seqNum, 1)
 	args.ShardId = key2shard(key)
+	DPrint("[Client %v] send %v", ck.clientId, args)
 
 	for {
 		shard := key2shard(key)
@@ -119,6 +122,7 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 				srv := ck.make_end(servers[si])
 				var reply PutAppendReply
 				ok := srv.Call("ShardKV.PutAppend", &args, &reply)
+				DPrint("[Client %v] get reply %v (ok = %v) form [%v-%v]", ck.clientId, reply, ok, gid, si)
 				if ok && reply.Err == OK {
 					return
 				}

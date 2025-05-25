@@ -190,14 +190,16 @@ func (kv *ShardKV) Sync(args *SyncArgs, reply *SyncReply) {
 }
 
 func (kv *ShardKV) executeNormalOp(op Op) (res ApplyMsg) {
+	DPrint("[kv %d-%d] recieve normal op {%v, %v, %v, %v, %v, %v}", kv.gid, kv.me, op.Operation, op.ShardId, op.ConfigNum, op.ClientId, op.MsgId, op.RequestId)
 	_, _, isLeader := kv.rf.Start(op)
 	if !isLeader {
+		DPrint("[kv %d-%d] reply %v for not leader", kv.gid, kv.me, op.RequestId)
 		res.Error = ErrWrongLeader
 		return
 	}
 	kv.mu.Lock()
 	ch := make(chan ApplyMsg, 1)
-	kv.opChan[op.ClientId] = ch
+	kv.opChan[op.RequestId] = ch
 	kv.mu.Unlock()
 
 	select {
@@ -220,6 +222,7 @@ func (kv *ShardKV) Kill() {
 	kv.rf.Kill()
 	// Your code here, if desired.
 	atomic.StoreInt32(&kv.dead, 1)
+	DPrint("[kv %d-%d] killed", kv.gid, kv.me)
 	notify(kv.killCh)
 }
 
@@ -241,6 +244,7 @@ func (kv *ShardKV) pullConfig() {
 				newConfig := kv.mck.Query(currentConfigNum + 1)
 				oldConfig := kv.mck.Query(currentConfigNum)
 				if newConfig.Num == oldConfig.Num+1 {
+					DPrint("[kv %d-%d] (num = %v) get new config %v over %v", kv.gid, kv.me, currentConfigNum, newConfig, oldConfig)
 					kv.rf.Start(Op{
 						Operation:    "Migrate",
 						NewConfig:    newConfig.Copy(),
@@ -289,15 +293,19 @@ func (kv *ShardKV) applyLoop() {
 }
 
 func (kv *ShardKV) applyNormalOp(op Op) (res ApplyMsg) {
+	DPrint("[kv %d-%d] apply normal op {%v, %v, %v, %v, %v, %v}", kv.gid, kv.me, op.Operation, op.ShardId, op.ConfigNum, op.ClientId, op.MsgId, op.RequestId)
 	if kv.CurrentConfigNum == 0 || op.ConfigNum != kv.CurrentConfigNum {
+		DPrint("[kv %d-%d] reply %v for wrong config num (%v != %v)", kv.gid, kv.me, op.RequestId, op.ConfigNum, kv.CurrentConfigNum)
 		res.Error = ErrWrongGroup
 		return
 	}
 	if _, ok := kv.ServingShards[op.ShardId]; !ok {
+		DPrint("[kv %d-%d] reply %v for wrong shard id (%v not in %v)", kv.gid, kv.me, op.RequestId, op.ShardId, kv.ServingShards)
 		res.Error = ErrWrongGroup
 		return
 	}
 	if _, ok := kv.WaitingShards[op.ShardId]; ok {
+		DPrint("[kv %d-%d] reply %v for shard %v is migrating", kv.gid, kv.me, op.RequestId, op.ShardId)
 		res.Error = ErrWrongGroup
 		return
 	}
@@ -343,10 +351,13 @@ func (kv *ShardKV) applySync(op Op) Err {
 }
 
 func (kv *ShardKV) applyMigrate(op Op) Err {
-	if kv.CurrentConfigNum+1 != op.ConfigNum {
+	DPrint("[kv %d-%d] apply migrate op %v", kv.gid, kv.me, op.NewConfig)
+	if kv.CurrentConfigNum+1 != op.NewConfig.Num {
+		DPrint("[kv %d-%d] reply migrate op for wrong config num (%v != %v)", kv.gid, kv.me, op.NewConfig.Num, kv.CurrentConfigNum+1)
 		return ErrWrongGroup
 	}
 	if len(kv.WaitingShards) > 0 {
+		DPrint("[kv %d-%d] reply migrate op for shard is migrating", kv.gid, kv.me)
 		return ErrMigrating
 	}
 
@@ -489,6 +500,8 @@ func StartServer(servers []*labrpc.ClientEnd, me int, persister *raft.Persister,
 
 	kv.applyCh = make(chan raft.ApplyMsg)
 	kv.rf = raft.Make(servers, me, persister, kv.applyCh)
+
+	DPrint("[kv %d-%d] start server with config num = %v", kv.gid, kv.me, kv.CurrentConfigNum)
 
 	go kv.applyLoop()
 	go kv.pullConfig()
